@@ -43,20 +43,25 @@ begin
     while PtrToProjectItemPtr^ <> nil do
     begin
         if PtrToProjectItemPtr^^.project.id = project.id then
-            break;
+        begin
+            tmp := PtrToProjectItemPtr^;
+            PtrToProjectItemPtr^ := PtrToProjectItemPtr^^.next;
+            dispose(tmp);
+            exit;
+        end;
         PtrToProjectItemPtr := @(PtrToProjectItemPtr^^.next);
     end;
-    tmp := PtrToProjectItemPtr^;
-    PtrToProjectItemPtr^ := PtrToProjectItemPtr^^.next;
-    dispose(tmp);
 end;
 
 procedure ProjectListClear(var list: ProjectList);
+var
+    tmp: ProjectItemPtr;
 begin
     while not ProjectListIsEmpty(list) do
     begin
-        ProjectListRemove(list, list^.project);
+        tmp := list;
         list := list^.next;
+        ProjectListRemove(list, tmp^.project);
     end;
 end;
 

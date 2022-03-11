@@ -4,7 +4,7 @@ interface
 type
     FolderType = (FNone, FToday, FWeek);
     TTask = record
-        id, ProjectId, RepeatInterval, LastRepeat, CreationDate: longint;
+        id, ProjectId, RepeatInterval, LastRepeat, CreationDate, days: longint;
         name: string;
         folder: FolderType;
         done, removed, green: boolean;
@@ -146,6 +146,7 @@ begin
     tmp.green := false;
     tmp.ProjectId := 0;
     tmp.RepeatInterval := 0;
+    tmp.days := 0;
     tmp.LastRepeat := 0;
     tmp.CreationDate := date;
     SetTaskRecord(tmp, TasksFile);

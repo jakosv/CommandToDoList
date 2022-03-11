@@ -39,6 +39,8 @@ var
 begin
     GetProjectRecord(0, tmp, ProjectsFile);
     tmp.id := NewCount;
+    seek(ProjectsFile, 0);
+    write(ProjectsFile, tmp);
 end;
 
 procedure GetProjectRecord(id: longint; var project: TProject;
@@ -87,10 +89,11 @@ procedure AddProjectRecord(var name: string; var ProjectsFile: FileOfProject);
 var
     tmp: TProject;
 begin
-    tmp.id := ProjectRecordCount(ProjectsFile);
+    tmp.id := ProjectRecordCount(ProjectsFile) + 1;
     tmp.name := name;
     tmp.removed := false;
     SetProjectRecord(tmp.id, tmp, ProjectsFile);
+    SetProjectRecordCount(tmp.id, ProjectsFile);
 end;
 
 end.
