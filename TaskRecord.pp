@@ -35,6 +35,7 @@ procedure SetTaskRecordDone(id: longint; var TasksFile: FileOfTask);
 procedure SetTaskRecordRemoved(id: longint; var TasksFile: FileOfTask);
 procedure SetTaskRecordGreen(id: longint; var TasksFile: FileOfTask);
 procedure AddTaskRecord(var name: string; var TasksFile: FileOfTask);
+procedure AddTaskRecordCopy(var task: TTask; var TasksFile: FileOfTask);
 
 implementation
 uses sysutils;
@@ -133,6 +134,7 @@ begin
     tmp.repeating := repeating;
     tmp.RepeatInterval := interval;
     tmp.NextRepeat := NextRepeat;
+    tmp.CreationDate := NextRepeat;
     tmp.RepeatDays := RepeatDays;
     SetTaskRecord(tmp, TasksFile);
 end;
@@ -196,6 +198,27 @@ begin
     tmp.NextRepeat := 0;
     tmp.RepeatDays := 0;
     tmp.CreationDate := date;
+    SetTaskRecord(tmp, TasksFile);
+    SetTaskRecordCount(tmp.id, TasksFile);
+end;
+
+procedure AddTaskRecordCopy(var task: TTask; var TasksFile: FileOfTask);
+var
+    tmp: TTask;
+begin
+    tmp.id := TaskRecordCount(TasksFile) + 1;
+    tmp.name := task.name;
+    tmp.description := task.description;
+    tmp.done := task.done;
+    tmp.removed := task.removed;
+    tmp.repeating := task.repeating;
+    tmp.green := task.green;
+    tmp.ProjectId := task.ProjectId;
+    tmp.RepeatInterval := task.RepeatInterval;
+    tmp.days := task.days;
+    tmp.NextRepeat := task.NextRepeat;
+    tmp.RepeatDays := task.RepeatDays;
+    tmp.CreationDate := task.NextRepeat;
     SetTaskRecord(tmp, TasksFile);
     SetTaskRecordCount(tmp.id, TasksFile);
 end;

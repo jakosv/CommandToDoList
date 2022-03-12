@@ -5,15 +5,19 @@ uses TaskRecord, ProjectRecord, ListOfTasks, ListOfProjects;
 
 procedure InitDatabase(TasksFilename, ProjectsFilename: string);
 procedure AddTask(var name: string);
+procedure AddTaskCopy(var task: TTask);
 procedure DoneTask(id: longint);
 procedure SetTaskFolder(id: longint; folder: FolderType);
 procedure SetTaskProject(id, ProjectId: longint);
 procedure SetTaskGreen(id: longint);
 procedure SetTaskName(id: longint; var NewName: string);
+procedure SetTaskDescription(id: longint; var description: string);
 procedure SetTaskRepeat(id: longint; repeating: boolean;
     interval: integer; NextRepeat: longint; RepeatDays: word);
 procedure RemoveTask(id: longint);
 procedure AddProject(var name: string);
+procedure SetProjectName(id: longint; var NewName: string);
+procedure SetProjectDescription(id: longint; var description: string);
 procedure RemoveProject(id: longint);
 function FetchTasks: TaskList;
 function FetchProjectTasks(ProjectId: longint): TaskList;
@@ -57,6 +61,15 @@ procedure AddTask(var name: string);
 begin
     reset(TasksFile);
     AddTaskRecord(name, TasksFile);
+    close(TasksFile);
+end;
+
+procedure AddTaskCopy(var task: TTask);
+var
+    id: longint;
+begin
+    reset(TasksFile);
+    AddTaskRecordCopy(task, TasksFile);
     close(TasksFile);
 end;
 
@@ -109,6 +122,13 @@ begin
     close(TasksFile);
 end;
 
+procedure SetTaskDescription(id: longint; var description: string);
+begin
+    reset(TasksFile);
+    SetTaskRecordDescription(id, description, TasksFile);
+    close(TasksFile);
+end;
+
 procedure SetTaskRepeat(id: longint; repeating: boolean;
     interval: integer; NextRepeat: longint; RepeatDays: word);
 begin
@@ -116,6 +136,20 @@ begin
     SetTaskRecordRepeat(id, repeating, interval, NextRepeat, RepeatDays, 
         TasksFile);
     close(TasksFile);
+end;
+
+procedure SetProjectName(id: longint; var NewName: string);
+begin
+    reset(ProjectsFile);
+    SetProjectRecordName(id, NewName, ProjectsFile);
+    close(ProjectsFile);
+end;
+
+procedure SetProjectDescription(id: longint; var description: string);
+begin
+    reset(ProjectsFile);
+    SetProjectRecordDescription(id, description, ProjectsFile);
+    close(ProjectsFile);
 end;
 
 procedure RemoveProject(id: longint);
