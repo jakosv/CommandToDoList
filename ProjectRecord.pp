@@ -4,7 +4,7 @@ interface
 type
     TProject = record
         id: longint;
-        name: string;
+        name, description: string;
         removed: boolean;
     end;
     FileOfProject = file of TProject;
@@ -15,6 +15,10 @@ procedure SetProjectRecordCount(NewCount: longint;
 procedure GetProjectRecord(id: longint; var project: TProject;
     var ProjectsFile: FileOfProject);
 procedure GetProjectRecordName(id: longint; var name: string;
+    var ProjectsFile: FileOfProject);
+procedure SetProjectRecordName(id: longint; var name: string;
+    var ProjectsFile: FileOfProject);
+procedure SetProjectRecordDescription(id: longint; var description: string;
     var ProjectsFile: FileOfProject);
 procedure SetProjectRecord(id: longint; var project: TProject;
     var ProjectsFile: FileOfProject);
@@ -76,6 +80,16 @@ begin
     SetProjectRecord(id, tmp, ProjectsFile);
 end;
 
+procedure SetProjectRecordDescription(id: longint; var description: string;
+    var ProjectsFile: FileOfProject);
+var
+    tmp: TProject;
+begin
+    GetProjectRecord(id, tmp, ProjectsFile); 
+    tmp.description := description;
+    SetProjectRecord(id, tmp, ProjectsFile);
+end;
+
 procedure SetProjectRecordRemoved(id: longint; var ProjectsFile: FileOfProject);
 var
     tmp: TProject;
@@ -91,6 +105,7 @@ var
 begin
     tmp.id := ProjectRecordCount(ProjectsFile) + 1;
     tmp.name := name;
+    tmp.description := '';
     tmp.removed := false;
     SetProjectRecord(tmp.id, tmp, ProjectsFile);
     SetProjectRecordCount(tmp.id, ProjectsFile);

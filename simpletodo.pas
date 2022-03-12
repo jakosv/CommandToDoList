@@ -427,7 +427,7 @@ begin
             CurrentScreen := SProjects;
             continue;
         end
-        else if params[1] = 'h' then
+        else if (params[1] = 'h') or (params[1] = 'help') then
             CurrentScreen := SHelp
         else if params[1] = 'q' then
             break;

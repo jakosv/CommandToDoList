@@ -5,7 +5,7 @@ type
     FolderType = (FNone, FToday, FWeek);
     TTask = record
         id, ProjectId, RepeatInterval, LastRepeat, CreationDate, days: longint;
-        name: string;
+        name, description: string;
         folder: FolderType;
         done, removed, green: boolean;
     end;
@@ -21,6 +21,8 @@ procedure SetTaskRecordFolder(id: longint; NewFolder: FolderType;
     var TasksFile: FileOfTask);
 procedure SetTaskRecord(var task: TTask; var TasksFile: FileOfTask);
 procedure SetTaskRecordName(id: longint; var name: string; 
+    var TasksFile: FileOfTask);
+procedure SetTaskRecordDescription(id: longint; var description: string; 
     var TasksFile: FileOfTask);
 procedure SetTaskRecordProject(id: longint; var ProjectId: longint;
         var TasksFile: FileOfTask);
@@ -96,6 +98,16 @@ begin
     SetTaskRecord(tmp, TasksFile);
 end;
 
+procedure SetTaskRecordDescription(id: longint; var description: string; 
+    var TasksFile: FileOfTask);
+var
+    tmp: TTask;
+begin
+    GetTaskRecord(id, tmp, TasksFile); 
+    tmp.description := description;
+    SetTaskRecord(tmp, TasksFile);
+end;
+
 procedure SetTaskRecordProject(id: longint; var ProjectId: longint;
         var TasksFile: FileOfTask);
 var
@@ -141,6 +153,7 @@ begin
     date := DateTimeToTimeStamp(now).date; 
     tmp.id := TaskRecordCount(TasksFile) + 1;
     tmp.name := name;
+    tmp.description := '';
     tmp.done := false;
     tmp.removed := false;
     tmp.green := false;
