@@ -1,4 +1,4 @@
-program SimpleToDoList;
+program CommandToDoList;
 uses sysutils, ListOfTasks, ListOfProjects, database, TaskRecord,
     ProjectRecord;
 
