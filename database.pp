@@ -10,6 +10,8 @@ procedure SetTaskFolder(id: longint; folder: FolderType);
 procedure SetTaskProject(id, ProjectId: longint);
 procedure SetTaskGreen(id: longint);
 procedure SetTaskName(id: longint; var NewName: string);
+procedure SetTaskRepeat(id: longint; repeating: boolean;
+    interval: integer; NextRepeat: longint; RepeatDays: word);
 procedure RemoveTask(id: longint);
 procedure AddProject(var name: string);
 procedure RemoveProject(id: longint);
@@ -18,6 +20,7 @@ function FetchProjectTasks(ProjectId: longint): TaskList;
 function FetchProjects: ProjectList;
 
 implementation
+uses sysutils;
 var
     TasksFile: FileOfTask;
     ProjectsFile: FileOfProject;
@@ -103,6 +106,15 @@ procedure SetTaskName(id: longint; var NewName: string);
 begin
     reset(TasksFile);
     SetTaskRecordName(id, NewName, TasksFile);
+    close(TasksFile);
+end;
+
+procedure SetTaskRepeat(id: longint; repeating: boolean;
+    interval: integer; NextRepeat: longint; RepeatDays: word);
+begin
+    reset(TasksFile);
+    SetTaskRecordRepeat(id, repeating, interval, NextRepeat, RepeatDays, 
+        TasksFile);
     close(TasksFile);
 end;
 

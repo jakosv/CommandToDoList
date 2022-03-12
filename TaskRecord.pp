@@ -4,10 +4,12 @@ interface
 type
     FolderType = (FNone, FToday, FWeek);
     TTask = record
-        id, ProjectId, RepeatInterval, LastRepeat, CreationDate, days: longint;
+        id, ProjectId, NextRepeat, CreationDate, days: longint;
+        RepeatInterval: integer;
+        RepeatDays: word;
         name, description: string;
         folder: FolderType;
-        done, removed, green: boolean;
+        done, removed, green, repeating: boolean;
     end;
     FileOfTask = file of TTask;
 
@@ -26,6 +28,9 @@ procedure SetTaskRecordDescription(id: longint; var description: string;
     var TasksFile: FileOfTask);
 procedure SetTaskRecordProject(id: longint; var ProjectId: longint;
         var TasksFile: FileOfTask);
+procedure SetTaskRecordRepeat(id: longint; repeating: boolean;
+    interval: integer; NextRepeat: longint; RepeatDays: word;
+    var TasksFile: FileOfTask);
 procedure SetTaskRecordDone(id: longint; var TasksFile: FileOfTask);
 procedure SetTaskRecordRemoved(id: longint; var TasksFile: FileOfTask);
 procedure SetTaskRecordGreen(id: longint; var TasksFile: FileOfTask);
@@ -118,6 +123,33 @@ begin
     SetTaskRecord(tmp, TasksFile);
 end;
 
+procedure SetTaskRecordRepeat(id: longint; repeating: boolean;
+    interval: integer; NextRepeat: longint; RepeatDays: word; 
+    var TasksFile: FileOfTask);
+var
+    tmp: TTask;
+begin
+    GetTaskRecord(id, tmp, TasksFile); 
+    tmp.repeating := repeating;
+    tmp.RepeatInterval := interval;
+    tmp.NextRepeat := NextRepeat;
+    tmp.RepeatDays := RepeatDays;
+    SetTaskRecord(tmp, TasksFile);
+end;
+
+procedure SetTaskRecordRepeatDays(id: longint; repeating: boolean;
+    RepeatDays: word; NextRepeat: longint; var TasksFile: FileOfTask);
+var
+    tmp: TTask;
+begin
+    GetTaskRecord(id, tmp, TasksFile); 
+    tmp.repeating := repeating;
+    tmp.RepeatInterval := 0;
+    tmp.NextRepeat := 0;
+    tmp.RepeatDays := RepeatDays;
+    SetTaskRecord(tmp, TasksFile);
+end;
+
 procedure SetTaskRecordDone(id: longint; var TasksFile: FileOfTask);
 var
     tmp: TTask;
@@ -156,11 +188,13 @@ begin
     tmp.description := '';
     tmp.done := false;
     tmp.removed := false;
+    tmp.repeating := false;
     tmp.green := false;
     tmp.ProjectId := 0;
     tmp.RepeatInterval := 0;
     tmp.days := 0;
-    tmp.LastRepeat := 0;
+    tmp.NextRepeat := 0;
+    tmp.RepeatDays := 0;
     tmp.CreationDate := date;
     SetTaskRecord(tmp, TasksFile);
     SetTaskRecordCount(tmp.id, TasksFile);

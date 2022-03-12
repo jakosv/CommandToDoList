@@ -99,22 +99,27 @@ begin
     writeln('tl - tasks list');
     writeln('p [ProjectNumber] - project tasks list');
     writeln('a [name] - add task to current list');
-    writeln('r [TaskNumber] - remove task from current list');
+    writeln('rm [TaskNumber] - remove task from current list');
     writeln('n [TaskNumber] [name] - rename task from current list');
-    writeln('m [TaskNumber] [t/w/n/ProjectId] - move task from current ',
+    writeln('rd [TaskNumber] [Day] - set task to repeat ',
+        'on the day of week (1 - Monday, 2 - Tuesday, etc.)');
+    writeln('ri [TaskNumber] [interval] [StartDay] - set task to repeat ',
+        'with interval starting from (1 - Monday, 2 - Tuesday, etc.)');
+    writeln('mv [TaskNumber] [t/w/n/ProjectId] - move task from current ',
         'list to (today/week/none/project)');
     writeln('g [TaskNumber] - set task green form current list');
     writeln('s [TaskNumber] - set task done from current list');
     PrintLine(TitleLineSize, true);
     writeln('pl - projects list');
     writeln('a [name] - add project to current list');
-    writeln('r [ProjectNumber] - remove project from current list');
+    writeln('rm [ProjectNumber] - remove project from current list');
     PrintLine(TitleLineSize, true);
 end;
 
 procedure PrintTask(number: integer; var task: TTask);
 var
     TaskDays, today: longint;
+    NextRepeat: TTimeStamp;
 begin
     today := DateTimeToTimeStamp(now).date;
     TaskDays := today - task.CreationDate;
@@ -123,7 +128,19 @@ begin
         PrintGreenText(task.name)
     else
         write(task.name);
-    writeln(' | TaskDays: ', TaskDays);
+    write(' | TaskDays: ', TaskDays);
+    if task.repeating then
+    begin
+        if task.NextRepeat > today then
+        begin
+            NextRepeat.date := task.NextRepeat; 
+            write(' | Next repeat ',
+                DateToStr(TimeStampToDateTime(NextRepeat)));
+        end
+        else
+            write(' | Repeating ');
+    end;
+    writeln
 end;
 
 
@@ -132,8 +149,8 @@ begin
     writeln(number, '. ', name);
 end;
 
-procedure GetTaskId(TaskNumber: longint; var list: TaskList; var id: longint;
-    var found: boolean);
+procedure GetTaskByNumber(TaskNumber: longint; var list: TaskList; 
+    var task: TTask; var found: boolean);
 var
     tmp: TaskList;
     number: longint;
@@ -146,7 +163,7 @@ begin
         if number = TaskNumber then
         begin
             found := true;
-            id := tmp^.task.id;
+            task := tmp^.task;
             exit;
         end;
         number := number + 1;
@@ -219,62 +236,142 @@ end;
 procedure DoneTaskCmd(var params: ParamsArray; ParamsCount: integer;
     var list: TaskList);
 var
-    number, TaskId: longint;
+    number: longint;
+    task: TTask;
     found: boolean;
 begin
     if ParamsCount < 2 then
         exit;
     number := StrToInt(params[2]); 
-    GetTaskId(number, list, TaskId, found);
+    GetTaskByNumber(number, list, task, found);
     if not found then
         exit;
-    DoneTask(TaskId);
+    DoneTask(task.id);
+end;
+
+procedure RepeatIntervalTaskCmd(var params: ParamsArray; ParamsCount: integer;
+    var list: TaskList);
+var
+    number, NextRepeat, CurDate: longint;
+    interval: integer;
+    StartDay, today: word;
+    found: boolean;
+    task: TTask;
+begin
+    if ParamsCount < 3 then
+        exit;
+    today := (DayOfWeek(Date) - 2) mod 7 + 1;
+    if ParamsCount < 4 then
+        StartDay := today
+    else
+        StartDay := (StrToInt(params[4]) - 1) mod 7 + 1;
+    CurDate := DateTimeToTimeStamp(Date).date; 
+    number := StrToInt(params[2]); 
+    interval := StrToInt(params[3]);
+    if StartDay < today then
+        NextRepeat := CurDate + (7 - today) + StartDay
+    else
+        NextRepeat := CurDate + (StartDay - today);
+    GetTaskByNumber(number, list, task, found);
+    if (not found) or (interval <= 0) then
+    begin
+        SetTaskRepeat(task.id, false, 0, 0, 0);
+        exit;
+    end;
+    SetTaskRepeat(task.id, true, interval, NextRepeat, 0);
+end;
+
+function NextRepeatDate(RepeatDays: word): longint;
+var
+    day, interval, today: word;
+    res: longint;
+begin
+    today := (DayOfWeek(Date) - 2) mod 7 + 1;
+    interval := 8;
+    for day:=1 to 7 do
+    begin
+        if (RepeatDays and (1 shl (day - 1))) <> 0 then
+        begin
+            if (today > day) and (((7 - today) + day) < interval) then
+                interval := ((7 - today) + day)
+            else if (today <= day) and ((day - today) < interval) then
+                interval := (day - today);
+        end;
+    end;
+    NextRepeatDate := DateTimeToTimeStamp(Date).date + interval; 
+end;
+
+procedure RepeatDaysTaskCmd(var params: ParamsArray; ParamsCount: integer;
+    var list: TaskList);
+var
+    number, NextRepeat, CurDate: longint;
+    day, today: word;
+    task: TTask;
+    found: boolean;
+begin
+    if ParamsCount < 3 then
+        exit;
+    CurDate := DateTimeToTimeStamp(Date).date; 
+    number := StrToInt(params[2]); 
+    day := (StrToInt(params[3]) - 1) mod 7 + 1;
+    GetTaskByNumber(number, list, task, found);
+    task.RepeatDays := task.RepeatDays xor (1 shl (day - 1));
+    if (not found) or (task.RepeatDays = 0) then
+    begin
+        SetTaskRepeat(task.id, false, 0, 0, 0);
+        exit;
+    end;
+    NextRepeat := NextRepeatDate(task.RepeatDays); 
+    SetTaskRepeat(task.id, true, 0, NextRepeat, task.RepeatDays);
 end;
 
 procedure SetTaskGreenCmd(var params: ParamsArray; ParamsCount: integer;
     var list: TaskList);
 var
-    number, TaskId: longint;
+    number: longint;
+    task: TTask;
     found: boolean;
 begin
     if ParamsCount < 2 then
         exit;
     number := StrToInt(params[2]); 
-    GetTaskId(number, list, TaskId, found);
+    GetTaskByNumber(number, list, task, found);
     if not found then
         exit;
-    SetTaskGreen(TaskId);
+    SetTaskGreen(task.id);
 end;
 
 procedure RenameTaskCmd(var params: ParamsArray; ParamsCount: integer;
     var list: TaskList);
 var
     number, TaskId: longint;
+    task: TTask;
     found: boolean;
     name: string;
 begin
     if ParamsCount < 3 then
         exit;
     number := StrToInt(params[2]); 
-    GetTaskId(number, list, TaskId, found);
+    GetTaskByNumber(number, list, task, found);
     if not found then
         exit;
     name := ConcatParams(params, ParamsCount, 3);
-    SetTaskName(TaskId, name);
+    SetTaskName(task.id, name);
 end;
 
 procedure MoveTaskCmd(var params: ParamsArray; ParamsCount: integer;
     var tasks: TaskList; var projects: ProjectList);
 var
-    number, TaskId, ProjectNumber: longint;
+    number, ProjectNumber: longint;
     found: boolean;
     project: TProject;
+    task: TTask;
     folder: FolderType;
 begin
     if ParamsCount < 3 then
         exit;
     number := StrToInt(params[2]); 
-    GetTaskId(number, tasks, TaskId, found);
+    GetTaskByNumber(number, tasks, task, found);
     if not found then
         exit;
     if (params[3] = 't') or (params[3] = 'today') then
@@ -288,27 +385,28 @@ begin
         ProjectNumber := StrToInt(params[3]);
         GetProjectByNumber(ProjectNumber, projects, project, found);
         if not found then
-            SetTaskProject(TaskId, 0)  
+            SetTaskProject(task.id, 0)  
         else 
-            SetTaskProject(TaskId, project.id);
+            SetTaskProject(task.id, project.id);
     end
     else
-        SetTaskFolder(TaskId, folder);
+        SetTaskFolder(task.id, folder);
 end;
 
 procedure RemoveTaskCmd(var params: ParamsArray; ParamsCount: integer;
     var list: TaskList);
 var
-    number, TaskId: longint;
+    number: longint;
+    task: TTask;
     found: boolean;
 begin
     if ParamsCount < 2 then
         exit;
     number := StrToInt(params[2]); 
-    GetTaskId(number, list, TaskId, found);
+    GetTaskByNumber(number, list, task, found);
     if not found then
         exit;
-    RemoveTask(TaskId);
+    RemoveTask(task.id);
 end;
 
 procedure ShowProjectTasks(var params: ParamsArray; ParamsCount: integer;
@@ -439,21 +537,25 @@ begin
                     AddTaskCmd(params, ParamsCount);
                     CurrentScreen := STasks;
                 end
-                else if params[1] = 'r' then
+                else if params[1] = 'rm' then
                     RemoveTaskCmd(params, ParamsCount, tasks)
                 else if params[1] = 'd' then
                     DoneTaskCmd(params, ParamsCount, tasks)
                 else if params[1] = 'g' then
                     SetTaskGreenCmd(params, ParamsCount, tasks)
-                else if params[1] = 'm' then
+                else if params[1] = 'mv' then
                     MoveTaskCmd(params, ParamsCount, tasks, projects)
                 else if params[1] = 'n' then
                     RenameTaskCmd(params, ParamsCount, tasks)
+                else if params[1] = 'rd' then
+                    RepeatDaysTaskCmd(params, ParamsCount, tasks)
+                else if params[1] = 'ri' then
+                    RepeatIntervalTaskCmd(params, ParamsCount, tasks)
             end;
             SProjects: begin
                 if params[1] = 'a' then
                     AddProjectCmd(params, ParamsCount)
-                else if params[1] = 'r' then
+                else if params[1] = 'rm' then
                     RemoveProjectCmd(params, ParamsCount)
             end;
         end;

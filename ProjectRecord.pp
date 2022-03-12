@@ -3,7 +3,7 @@ unit ProjectRecord;
 interface
 type
     TProject = record
-        id: longint;
+        id, CreationDate: longint;
         name, description: string;
         removed: boolean;
     end;
@@ -106,6 +106,7 @@ begin
     tmp.id := ProjectRecordCount(ProjectsFile) + 1;
     tmp.name := name;
     tmp.description := '';
+    tmp.CreationDate := DateTimeToTimeStamp(Date).date;
     tmp.removed := false;
     SetProjectRecord(tmp.id, tmp, ProjectsFile);
     SetProjectRecordCount(tmp.id, ProjectsFile);
