@@ -230,6 +230,15 @@ begin
     writeln;
 end;
 
+procedure PrintTodayTask(number: integer; var task: TTask);
+begin
+    write(number, '. '); 
+    if task.green then
+        PrintGreenText(task.name)
+    else
+        write(task.name);
+end;
+
 procedure PrintTask(number: integer; var task: TTask);
 var
     TaskDays, today: longint;
@@ -237,11 +246,7 @@ var
 begin
     today := DateTimeToTimeStamp(now).date;
     TaskDays := today - task.CreationDate;
-    write(number, '. '); 
-    if task.green then
-        PrintGreenText(task.name)
-    else
-        write(task.name);
+    PrintTodayTask(number, task);
     if (task.folder = FToday) or 
         (task.repeating and (task.NextRepeat <= today))
         then
@@ -263,18 +268,8 @@ begin
     end
     else
         write(' | TaskDays: ', TaskDays);
-    writeln
 end;
 
-procedure PrintTodayTask(number: integer; var task: TTask);
-begin
-    write(number, '. '); 
-    if task.green then
-        PrintGreenText(task.name)
-    else
-        write(task.name);
-    writeln
-end;
 
 procedure PrintWeekTask(number: integer; var task: TTask);
 var
@@ -282,11 +277,7 @@ var
     NextRepeat: TTimeStamp;
 begin
     today := DateTimeToTimeStamp(now).date;
-    write(number, '. '); 
-    if task.green then
-        PrintGreenText(task.name)
-    else
-        write(task.name);
+    PrintTodayTask(number, task);
     if (task.folder = FToday) or 
         (task.repeating and (task.NextRepeat <= today))
         then
@@ -302,7 +293,6 @@ begin
         else
             write(' | Repeating ');
     end;
-    writeln
 end;
 
 
@@ -359,6 +349,7 @@ begin
             PrintWeekTask(number, list^.task)
         else
             PrintTask(number, list^.task);
+        writeln;
         number := number + 1;
         list := list^.next;
     end;
@@ -456,7 +447,7 @@ begin
     GetTaskByNumber(number, list, task, found);
     if (not found) or (interval <= 0) then
     begin
-        SetTaskRepeat(task.id, false, 0, 0, 0);
+        SetTaskRepeat(task.id, false, 0, CurDate, 0);
         exit;
     end;
     SetTaskRepeat(task.id, true, interval, NextRepeat, 0);
@@ -483,7 +474,7 @@ begin
     task.RepeatDays := task.RepeatDays xor (1 shl (day - 1));
     if task.RepeatDays = 0 then
     begin
-        SetTaskRepeat(task.id, false, 0, 0, 0);
+        SetTaskRepeat(task.id, false, 0, CurDate, 0);
         exit;
     end;
     today := (DayOfWeek(Date) - 2 + 7) mod 7 + 1;
