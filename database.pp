@@ -19,9 +19,9 @@ procedure AddProject(var name: string);
 procedure SetProjectName(id: longint; var NewName: string);
 procedure SetProjectDescription(id: longint; var description: string);
 procedure RemoveProject(id: longint);
-function FetchTasks: TaskList;
-function FetchProjectTasks(ProjectId: longint): TaskList;
-function FetchProjects: ProjectList;
+function FetchTasks(ProjectId: longint; folder: FolderType; 
+    done, removed: boolean): TaskList;
+function FetchProjects(removed: boolean): ProjectList;
 
 implementation
 uses sysutils;
@@ -65,8 +65,6 @@ begin
 end;
 
 procedure AddTaskCopy(var task: TTask);
-var
-    id: longint;
 begin
     reset(TasksFile);
     AddTaskRecordCopy(task, TasksFile);
@@ -159,10 +157,45 @@ begin
     close(ProjectsFile);
 end;
 
-function FetchTasks: TaskList;
+function IsTaskToday(var task: TTask; folder: FolderType): boolean;
+var
+    CurDate: longint;
+begin
+    CurDate := DateTimeToTimeStamp(Date).date;
+    IsTaskToday := ((folder = FToday) and ((task.folder = folder) or
+        (task.repeating and (task.NextRepeat <= CurDate))));
+end;
+
+function IsTaskOnWeek(var task: TTask; folder: FolderType): boolean;
+var
+    CurDate: longint;
+begin
+    CurDate := DateTimeToTimeStamp(Date).date;
+    IsTaskOnWeek := ((folder = FWeek) and 
+        ((task.folder = FWeek) or 
+        (task.folder = FToday) or 
+        (task.repeating and (task.NextRepeat <= (CurDate + 6)))));
+end;
+
+function RelevantTask(var task: TTask; ProjectId: longint; folder: FolderType;
+    done, removed: boolean): boolean;
+var
+    AllFolders, AllProjects: boolean;
+begin
+    AllFolders := (folder = FNone);
+    AllProjects := (ProjectId = 0);
+    RelevantTask := (task.removed = removed) and 
+                    (task.done = done) and
+                    (AllFolders or IsTaskToday(task, folder) or
+                        IsTaskOnWeek(task, folder)) and 
+                    (AllProjects or (task.ProjectId = ProjectId));
+end;
+
+function FetchTasks(ProjectId: longint; folder: FolderType;
+    done, removed: boolean): TaskList;
 var
     list: TaskList;
-    TempTask: TTask;
+    task: TTask;
     i, cnt: longint;
 begin
     reset(TasksFile);
@@ -171,43 +204,18 @@ begin
     seek(TasksFile, 1);
     for i:=1 to cnt do
     begin
-        read(TasksFile, TempTask);
-        if TempTask.removed or TempTask.done then
-            continue;
-        TaskListAdd(list, TempTask);
+        read(TasksFile, task);
+        if RelevantTask(task, ProjectId, folder, done, removed) then
+            TaskListAdd(list, task);
     end;
     close(TasksFile);
     FetchTasks := list;
 end;
 
-function FetchProjectTasks(ProjectId: longint): TaskList;
-var
-    list: TaskList;
-    TempTask: TTask;
-    i, cnt: longint;
-begin
-    reset(TasksFile);
-    TaskListInit(list);
-    cnt := TaskRecordCount(TasksFile);
-    seek(TasksFile, 1);
-    for i:=1 to cnt do
-    begin
-        read(TasksFile, TempTask);
-        if (not TempTask.removed) and (not TempTask.done) and 
-            (TempTask.ProjectId = ProjectId) 
-        then
-        begin
-            TaskListAdd(list, TempTask);
-        end;
-    end;
-    close(TasksFile);
-    FetchProjectTasks := list;
-end;
-
-function FetchProjects: ProjectList;
+function FetchProjects(removed: boolean): ProjectList;
 var
     list: ProjectList;
-    TempProject: TProject;
+    project: TProject;
     i, cnt: longint;
 begin
     reset(ProjectsFile);
@@ -216,10 +224,9 @@ begin
     seek(ProjectsFile, 1);
     for i:=1 to cnt do
     begin
-        read(ProjectsFile, TempProject);
-        if TempProject.removed then
-            continue;
-        ProjectListAdd(list, TempProject);
+        read(ProjectsFile, project);
+        if project.removed = removed then
+            ProjectListAdd(list, project);
     end;
     close(ProjectsFile);
     FetchProjects := list;

@@ -11,8 +11,8 @@ const
 
 type
     ParamsArray = array[1..MaxParamsCount] of string;
-    ScreenType = (STasks, SProjects, SProjectTasks, SToday, SWeek, SDoneTasks,
-        SRemovedTasks, SRemovedProjects, SHelp);
+    ScreenType = (STasks, SProjects, SProjectTasks, SProjectDoneTasks, SToday, 
+        SWeek, SDoneTasks, SRemovedTasks, SRemovedProjects, SHelp);
 
 procedure ParseCmd(var str: string; var params: ParamsArray;
     var ParamsCount: integer);
@@ -84,7 +84,7 @@ end;
 
 procedure PrintTitleLine(title: string);
 var
-    LineSize, i: integer;
+    LineSize: integer;
 begin
     LineSize := (TitleLineSize - length(title) - 2) div 2;
     PrintLine(LineSize, false);
@@ -97,6 +97,10 @@ procedure help;
 begin
     PrintTitleLine('Help');
     writeln('tl - tasks list');
+    writeln('t - today tasks list');
+    writeln('w - week tasks list');
+    writeln('dl - done tasks list');
+    writeln('rmtasks - removed tasks list');
     writeln('p [ProjectNumber] - project tasks list');
     writeln('a [name] - add task to current list');
     writeln('rm [TaskNumber] - remove task from current list');
@@ -113,6 +117,7 @@ begin
     writeln('d [TaskNumber] - set task done from current list');
     PrintLine(TitleLineSize, true);
     writeln('pl - projects list');
+    writeln('rmprojects - removed projects list');
     writeln('a [name] - add project to current list');
     writeln('n [ProjectNumber] [name] - change project name');
     writeln('ds [ProjectNumber] [description] - change project description');
@@ -181,9 +186,9 @@ begin
         exit;
     today := DateTimeToTimeStamp(now).date;
     TaskDays := today - task.CreationDate;
-    projects := FetchProjects;
+    projects := FetchProjects(false);
     GetTaskProjectName(task.ProjectId, ProjectName, FoundProject, projects);
-    PrintTitleLine('Task');
+    PrintTitleLine('Task Info');
     write('- '); 
     if task.green then
         PrintGreenText(task.name)
@@ -192,6 +197,10 @@ begin
     writeln;
     if task.description <> '' then
         writeln('- ', task.description);
+    if task.folder = FToday then
+        writeln('- List: Today'); 
+    if task.folder = FWeek then
+        writeln('- List: Week'); 
     if FoundProject then
         writeln('- Project: ', ProjectName);
     if task.repeating then
@@ -218,6 +227,7 @@ begin
     else
         writeln('- TaskDays: ', TaskDays);
     PrintLine(TitleLineSize, true);
+    writeln;
 end;
 
 procedure PrintTask(number: integer; var task: TTask);
@@ -232,6 +242,14 @@ begin
         PrintGreenText(task.name)
     else
         write(task.name);
+    if (task.folder = FToday) or 
+        (task.repeating and (task.NextRepeat <= today))
+        then
+        write(' | Today')
+    else if (task.folder = FWeek) or 
+        (task.repeating and (task.NextRepeat <= (today + 6)))
+        then
+        write(' | Week');
     if task.repeating then
     begin
         if task.NextRepeat > today then
@@ -245,6 +263,45 @@ begin
     end
     else
         write(' | TaskDays: ', TaskDays);
+    writeln
+end;
+
+procedure PrintTodayTask(number: integer; var task: TTask);
+begin
+    write(number, '. '); 
+    if task.green then
+        PrintGreenText(task.name)
+    else
+        write(task.name);
+    writeln
+end;
+
+procedure PrintWeekTask(number: integer; var task: TTask);
+var
+    today: longint;
+    NextRepeat: TTimeStamp;
+begin
+    today := DateTimeToTimeStamp(now).date;
+    write(number, '. '); 
+    if task.green then
+        PrintGreenText(task.name)
+    else
+        write(task.name);
+    if (task.folder = FToday) or 
+        (task.repeating and (task.NextRepeat <= today))
+        then
+        write(' | Today');
+    if task.repeating then
+    begin
+        if task.NextRepeat > today then
+        begin
+            NextRepeat.date := task.NextRepeat; 
+            write(' | Next repeat: ',
+                DateToStr(TimeStampToDateTime(NextRepeat)));
+        end
+        else
+            write(' | Repeating ');
+    end;
     writeln
 end;
 
@@ -263,7 +320,7 @@ end;
 procedure UpdateProjectList(var list: ProjectList);
 begin
     ProjectListClear(list);
-    list := FetchProjects;
+    list := FetchProjects(false);
 end;
 
 procedure GetProjectByNumber(ProjectNumber: longint; var list: ProjectList; 
@@ -288,17 +345,20 @@ begin
     end;
 end;
 
-procedure ShowTasks(list: TaskList; title: string);
+procedure ShowTasks(list: TaskList; title: string; screen: ScreenType);
 var
-    ProjectName: string;
     number: longint;
 begin
-    writeln;
     PrintTitleLine(title);
     number := 1;
     while list <> nil do
     begin
-        PrintTask(number, list^.task);
+        if screen = SToday then
+            PrintTodayTask(number, list^.task)
+        else if screen = SWeek then
+            PrintWeekTask(number, list^.task)
+        else
+            PrintTask(number, list^.task);
         number := number + 1;
         list := list^.next;
     end;
@@ -309,9 +369,8 @@ end;
 function NextRepeatDate(day, RepeatDays: word): longint;
 var
     WeekDay, interval, today: word;
-    res: longint;
 begin
-    today := (DayOfWeek(Date) - 2) mod 7 + 1;
+    today := (DayOfWeek(Date) - 2 + 7) mod 7 + 1;
     interval := 8;
     for WeekDay:=1 to 7 do
     begin
@@ -379,7 +438,7 @@ var
 begin
     if ParamsCount < 3 then
         exit;
-    today := (DayOfWeek(Date) - 2) mod 7 + 1;
+    today := (DayOfWeek(Date) - 2 + 7) mod 7 + 1;
     if ParamsCount < 4 then
         StartDay := today
     else
@@ -389,6 +448,7 @@ begin
     CurDate := DateTimeToTimeStamp(Date).date; 
     number := StrToInt(params[2]); 
     interval := StrToInt(params[3]);
+    writeln(today);
     if StartDay < today then
         NextRepeat := CurDate + (7 - today) + StartDay
     else
@@ -426,11 +486,8 @@ begin
         SetTaskRepeat(task.id, false, 0, 0, 0);
         exit;
     end;
-    today := (DayOfWeek(Date) - 2) mod 7 + 1;
-    if (task.NextRepeat = 0) or (day = today) then
-        task.NextRepeat := NextRepeatDate(today, task.RepeatDays)
-    else
-        task.NextRepeat := NextRepeatDate(DayOfWeek(Date), task.RepeatDays);
+    today := (DayOfWeek(Date) - 2 + 7) mod 7 + 1;
+    task.NextRepeat := NextRepeatDate(today, task.RepeatDays);
     SetTaskRepeat(task.id, true, 0, task.NextRepeat, task.RepeatDays);
 end;
 
@@ -453,7 +510,7 @@ end;
 procedure RenameTaskCmd(var params: ParamsArray; ParamsCount: integer;
     var list: TaskList);
 var
-    number, TaskId: longint;
+    number: longint;
     task: TTask;
     found: boolean;
     name: string;
@@ -536,22 +593,16 @@ begin
     RemoveTask(task.id);
 end;
 
-procedure ShowProjectTasks(var params: ParamsArray; ParamsCount: integer;
-    var tasks: TaskList; var projects: ProjectList);
+procedure ProjectTasksCmd(var params: ParamsArray; ParamsCount: integer;
+    var projects: ProjectList; var project: TProject; 
+    var FoundProject: boolean);
 var
-    project: TProject;
     number: longint;
-    found: boolean;
 begin
     if ParamsCount < 2 then
         exit;
     number := StrToInt(params[2]);
-    GetProjectByNumber(number, projects, project, found);
-    if not found then
-        exit;
-    tasks := FetchProjectTasks(project.id);
-    PrintProject(number, project.name);
-    ShowTasks(tasks, 'Project Tasks');
+    GetProjectByNumber(number, projects, project, FoundProject);
 end;
 
 procedure ShowProjectInfo(var params: ParamsArray; ParamsCount: integer;
@@ -568,7 +619,7 @@ begin
     GetProjectByNumber(number, projects, project, found);
     if not found then
         exit;
-    PrintTitleLine('Project');
+    PrintTitleLine('Project Info');
     writeln('- ', project.name);
     if project.description <> '' then
         writeln('- ', project.description);
@@ -576,13 +627,13 @@ begin
     writeln('- Creation date: ',
         DateToStr(TimeStampToDateTime(CreationDate)));
     PrintLine(TitleLineSize, true);
+    writeln;
 end;
 
 procedure ShowProjects(list: ProjectList; title: string);
 var
     number: longint;
 begin
-    writeln;
     PrintTitleLine(title);
     number := 1;
     while list <> nil do
@@ -602,7 +653,7 @@ var
 begin
     if ParamsCount < 2 then
         exit;
-    list := FetchProjects;
+    list := FetchProjects(false);
     name := ConcatParams(params, ParamsCount, 2);
     AddProject(name);
     ProjectListClear(list);
@@ -644,22 +695,20 @@ begin
     SetProjectDescription(project.id, description);
 end;
 
-procedure RemoveProjectCmd(var params: ParamsArray; ParamsCount: integer);
+procedure RemoveProjectCmd(var params: ParamsArray; ParamsCount: integer;
+    var list: ProjectList);
 var
-    number, ProjectId: longint;
+    number: longint;
     project: TProject;
-    list: ProjectList;
     found: boolean;
 begin
     if ParamsCount < 2 then
         exit;
     number := StrToInt(params[2]); 
-    list := FetchProjects;
     GetProjectByNumber(number, list, project, found);
     if not found then
         exit;
     RemoveProject(project.id);
-    ProjectListClear(list);
 end;
 
 var
@@ -667,11 +716,13 @@ var
     cmd: string;
     ParamsCount: integer;
     CurrentScreen: ScreenType;
+    CurProject: TProject;
+    found: boolean;
     tasks: TaskList;
     projects: ProjectList;
 begin
     InitDatabase(TasksFilename, ProjectsFilename);
-    CurrentScreen := STasks;
+    CurrentScreen := SToday;
     ParamsCount := 0;
     tasks := nil;
     projects := nil;
@@ -679,15 +730,42 @@ begin
     begin
         case CurrentScreen of
             STasks: begin
-                tasks := FetchTasks;
-                ShowTasks(tasks, 'Tasks');
+                tasks := FetchTasks(0, FNone, false, false);
+                ShowTasks(tasks, 'All Tasks', CurrentScreen);
+            end;
+            SToday: begin
+                tasks := FetchTasks(0, FToday, false, false);
+                ShowTasks(tasks, 'Today Tasks', CurrentScreen);
+            end;
+            SWeek: begin
+                tasks := FetchTasks(0, FWeek, false, false);
+                ShowTasks(tasks, 'Week Tasks', CurrentScreen);
             end;
             SProjectTasks: begin
-                ShowProjectTasks(params, ParamsCount, tasks, projects);
+                tasks := FetchTasks(CurProject.id, FNone, false, false);
+                writeln('Project: ', CurProject.name);
+                ShowTasks(tasks, 'Project Tasks', CurrentScreen);
+            end;
+            SProjectDoneTasks: begin
+                tasks := FetchTasks(CurProject.id, FNone, true, false);
+                writeln('Project: ', CurProject.name);
+                ShowTasks(tasks, 'Project Done Tasks', CurrentScreen);
+            end;
+            SDoneTasks: begin
+                tasks := FetchTasks(0, FNone, true, false);
+                ShowTasks(tasks, 'Done Tasks', CurrentScreen);
+            end;
+            SRemovedTasks: begin
+                tasks := FetchTasks(0, FNone, false, true);
+                ShowTasks(tasks, 'Removed Tasks', CurrentScreen);
             end;
             SProjects: begin
-                projects := FetchProjects;
+                projects := FetchProjects(false);
                 ShowProjects(projects, 'Projects');
+            end;
+            SRemovedProjects: begin
+                projects := FetchProjects(true);
+                ShowProjects(projects, 'Removed Projects');
             end;
             SHelp:
                 help;
@@ -696,64 +774,90 @@ begin
         readln(cmd);
         ParseCmd(cmd, params, ParamsCount);
         if ParamsCount < 1 then
-            continue
-        else if params[1] = 'tl' then 
-        begin
-            CurrentScreen := STasks;
             continue;
+        if params[1] = 'tl' then 
+            CurrentScreen := STasks
+        else if params[1] = 't' then
+            CurrentScreen := SToday
+        else if params[1] = 'w' then
+            CurrentScreen := SWeek
+        else if params[1] = 'dl' then
+        begin
+            if CurrentScreen = SProjectTasks then
+                CurrentScreen := SProjectDoneTasks
+            else 
+                CurrentScreen := SDoneTasks
         end
         else if params[1] = 'p' then 
         begin
-            CurrentScreen := SProjectTasks;
-            continue;
+            ProjectTasksCmd(params, ParamsCount, projects, CurProject, found);
+            if found then
+                CurrentScreen := SProjectTasks;
         end
         else if params[1] = 'pl' then 
-        begin
-            CurrentScreen := SProjects;
-            continue;
-        end
+            CurrentScreen := SProjects
+        else if params[1] = 'rmtasks' then
+            CurrentScreen := SRemovedTasks
+        else if params[1] = 'rmprojects' then
+            CurrentScreen := SRemovedProjects
         else if (params[1] = 'h') or (params[1] = 'help') then
             CurrentScreen := SHelp
         else if params[1] = 'q' then
-            break;
-
-        case CurrentScreen of
-            STasks, SProjectTasks: begin
-                if params[1] = 'a' then
-                begin
-                    AddTaskCmd(params, ParamsCount);
-                    CurrentScreen := STasks;
-                end
-                else if params[1] = 'rm' then
-                    RemoveTaskCmd(params, ParamsCount, tasks)
-                else if params[1] = 'd' then
-                    DoneTaskCmd(params, ParamsCount, tasks)
-                else if params[1] = 'g' then
-                    SetTaskGreenCmd(params, ParamsCount, tasks)
-                else if params[1] = 'mv' then
-                    MoveTaskCmd(params, ParamsCount, tasks, projects)
-                else if params[1] = 'n' then
-                    RenameTaskCmd(params, ParamsCount, tasks)
-                else if params[1] = 'ds' then
-                    ChangeTaskDescriptionCmd(params, ParamsCount, tasks)
-                else if params[1] = 'i' then
-                    ShowTaskInfo(params, ParamsCount, tasks)
-                else if params[1] = 'rd' then
-                    RepeatDaysTaskCmd(params, ParamsCount, tasks)
-                else if params[1] = 'ri' then
-                    RepeatIntervalTaskCmd(params, ParamsCount, tasks)
-            end;
-            SProjects: begin
-                if params[1] = 'a' then
-                    AddProjectCmd(params, ParamsCount)
-                else if params[1] = 'rm' then
-                    RemoveProjectCmd(params, ParamsCount)
-                else if params[1] = 'n' then
-                    RenameProjectCmd(params, ParamsCount, projects)
-                else if params[1] = 'ds' then
-                    ChangeProjectDescriptionCmd(params, ParamsCount, projects)
-                else if params[1] = 'i' then
-                    ShowProjectInfo(params, ParamsCount, projects)
+            break
+        else
+        begin
+            case CurrentScreen of
+                STasks, SProjectTasks, SToday, SWeek: begin
+                    if params[1] = 'a' then
+                    begin
+                        AddTaskCmd(params, ParamsCount);
+                        CurrentScreen := STasks;
+                    end
+                    else if params[1] = 'rm' then
+                        RemoveTaskCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'd' then
+                        DoneTaskCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'g' then
+                        SetTaskGreenCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'mv' then
+                        MoveTaskCmd(params, ParamsCount, tasks, projects)
+                    else if params[1] = 'n' then
+                        RenameTaskCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'ds' then
+                        ChangeTaskDescriptionCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'i' then
+                        ShowTaskInfo(params, ParamsCount, tasks)
+                    else if params[1] = 'rd' then
+                        RepeatDaysTaskCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'ri' then
+                        RepeatIntervalTaskCmd(params, ParamsCount, tasks)
+                end;
+                SDoneTasks, SRemovedTasks, SProjectDoneTasks: begin
+                    if params[1] = 'rm' then
+                        RemoveTaskCmd(params, ParamsCount, tasks)
+                    else if params[1] = 'd' then
+                        DoneTaskCmd(params, ParamsCount, tasks)
+                end;
+                SProjects: begin
+                    if params[1] = 'a' then
+                    begin
+                        AddProjectCmd(params, ParamsCount);
+                        CurrentScreen := SProjects;
+                    end
+                    else if params[1] = 'rm' then
+                        RemoveProjectCmd(params, ParamsCount, projects)
+                    else if params[1] = 'n' then
+                        RenameProjectCmd(params, ParamsCount, projects)
+                    else if params[1] = 'ds' then
+                        ChangeProjectDescriptionCmd(params, ParamsCount, 
+                            projects)
+                    else if params[1] = 'i' then
+                        ShowProjectInfo(params, ParamsCount, projects)
+                end;
+                SRemovedProjects: begin
+                    if params[1] = 'rm' then
+                        RemoveProjectCmd(params, ParamsCount, projects)
+                end;
             end;
         end;
     end;
